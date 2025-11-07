@@ -1,4 +1,5 @@
-// Prompt Injection Detector Content Script
+// Prompt Injection Detector Content Script - Optimized
+
 interface Pattern {
   id: string;
   name: string;
@@ -7,25 +8,53 @@ interface Pattern {
 }
 
 let patterns: Pattern[] = [];
+let compiledPatterns: Map<string, RegExp> = new Map();
+let activeBanner: HTMLElement | null = null;
+let bannerTimeout: number | null = null;
+let debounceTimer: number | null = null;
 
-// Load patterns from file
+const DEBOUNCE_DELAY = 300; // ms
+const BANNER_DURATION = 10000; // ms
+const SELECTOR = 'textarea, input[type="text"], [contenteditable="true"]';
+
+// Load and compile patterns from file
 async function loadPatterns(): Promise<void> {
   try {
     const response = await fetch(chrome.runtime.getURL('src/patterns.json'));
     patterns = await response.json();
-    console.log('Loaded patterns:', patterns);
+    
+    // Pre-compile regex patterns for better performance
+    patterns.forEach(pattern => {
+      try {
+        compiledPatterns.set(pattern.id, new RegExp(pattern.regex, 'gi'));
+      } catch (e) {
+        console.error(`Failed to compile pattern ${pattern.id}:`, e);
+      }
+    });
+    
+    console.log(`Loaded and compiled ${patterns.length} patterns`);
   } catch (error) {
     console.error('Failed to load patterns:', error);
   }
 }
 
-// Check text for injection patterns
+// Check text for injection patterns with optimized matching
 function detectInjection(text: string): { detected: boolean; matches: Array<{ pattern: Pattern; match: string }> } {
   const matches: Array<{ pattern: Pattern; match: string }> = [];
   
+  // Early exit for empty or very short text
+  if (!text || text.length < 3) {
+    return { detected: false, matches };
+  }
+  
   for (const pattern of patterns) {
-    const regex = new RegExp(pattern.regex, 'gi');
-    const match = regex.exec(text);
+    const compiledRegex = compiledPatterns.get(pattern.id);
+    if (!compiledRegex) continue;
+    
+    // Reset regex lastIndex for global flag
+    compiledRegex.lastIndex = 0;
+    const match = compiledRegex.exec(text);
+    
     if (match) {
       matches.push({ pattern, match: match[0] });
     }
@@ -34,10 +63,14 @@ function detectInjection(text: string): { detected: boolean; matches: Array<{ pa
   return { detected: matches.length > 0, matches };
 }
 
-// Create warning banner
+// Create warning banner with improved styling
 function createWarningBanner(matches: Array<{ pattern: Pattern; match: string }>): HTMLElement {
   const banner = document.createElement('div');
   banner.className = 'injection-detector-banner';
+  banner.setAttribute('role', 'alert');
+  banner.setAttribute('aria-live', 'assertive');
+  
+  // Use CSS class instead of inline styles for better performance
   banner.style.cssText = `
     position: fixed;
     top: 20px;
@@ -50,6 +83,7 @@ function createWarningBanner(matches: Array<{ pattern: Pattern; match: string }>
     z-index: 10000;
     max-width: 400px;
     font-family: system-ui, -apple-system, sans-serif;
+    animation: slideIn 0.3s ease-out;
   `;
   
   const title = document.createElement('div');
@@ -58,19 +92,34 @@ function createWarningBanner(matches: Array<{ pattern: Pattern; match: string }>
   banner.appendChild(title);
   
   const details = document.createElement('div');
-  details.style.cssText = 'font-size: 13px; line-height: 1.4;';
+  details.style.cssText = 'font-size: 13px; line-height: 1.4; max-height: 300px; overflow-y: auto;';
   
-  for (const { pattern, match } of matches) {
+  // Limit displayed matches to prevent DOM bloat
+  const maxMatches = 5;
+  const displayMatches = matches.slice(0, maxMatches);
+  
+  for (const { pattern, match } of displayMatches) {
     const item = document.createElement('div');
     item.style.cssText = 'margin: 5px 0; padding: 5px; background: rgba(0,0,0,0.2); border-radius: 4px;';
-    item.innerHTML = `<strong>${pattern.name}</strong> (${pattern.severity})<br/>Match: "${match}"`;
+    
+    // Sanitize and truncate match text
+    const sanitizedMatch = match.slice(0, 100).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    item.innerHTML = `<strong>${pattern.name}</strong> (${pattern.severity})<br/>Match: "${sanitizedMatch}${match.length > 100 ? '...' : ''}"`;
     details.appendChild(item);
+  }
+  
+  if (matches.length > maxMatches) {
+    const more = document.createElement('div');
+    more.style.cssText = 'margin-top: 5px; font-style: italic; opacity: 0.8;';
+    more.textContent = `... and ${matches.length - maxMatches} more`;
+    details.appendChild(more);
   }
   
   banner.appendChild(details);
   
   const closeBtn = document.createElement('button');
   closeBtn.textContent = '×';
+  closeBtn.setAttribute('aria-label', 'Close alert');
   closeBtn.style.cssText = `
     position: absolute;
     top: 5px;
@@ -83,69 +132,111 @@ function createWarningBanner(matches: Array<{ pattern: Pattern; match: string }>
     padding: 0;
     line-height: 1;
   `;
-  closeBtn.onclick = () => banner.remove();
+  closeBtn.onclick = () => removeBanner();
   banner.appendChild(closeBtn);
   
   return banner;
 }
 
-// Monitor text inputs and textareas
+// Remove banner with cleanup
+function removeBanner(): void {
+  if (activeBanner) {
+    activeBanner.remove();
+    activeBanner = null;
+  }
+  if (bannerTimeout !== null) {
+    clearTimeout(bannerTimeout);
+    bannerTimeout = null;
+  }
+}
+
+// Show banner with debouncing
+function showBanner(matches: Array<{ pattern: Pattern; match: string }>): void {
+  removeBanner();
+  
+  activeBanner = createWarningBanner(matches);
+  document.body.appendChild(activeBanner);
+  
+  // Auto-remove after duration
+  bannerTimeout = window.setTimeout(removeBanner, BANNER_DURATION);
+}
+
+// Debounced input handler
+function handleInput(e: Event): void {
+  const target = e.target as HTMLInputElement | HTMLTextAreaElement | HTMLElement;
+  
+  // Clear existing debounce timer
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+  }
+  
+  debounceTimer = window.setTimeout(() => {
+    const text = 'value' in target ? target.value : target.textContent || '';
+    
+    const result = detectInjection(text);
+    if (result.detected) {
+      showBanner(result.matches);
+    } else {
+      removeBanner();
+    }
+  }, DEBOUNCE_DELAY);
+}
+
+// Attach listener to input element
+function attachListener(input: Element): void {
+  const element = input as HTMLElement;
+  if (!(element as any)._injectionDetectorAttached) {
+    (element as any)._injectionDetectorAttached = true;
+    element.addEventListener('input', handleInput, { passive: true });
+  }
+}
+
+// Monitor text inputs and textareas with optimized observer
 function monitorInputs(): void {
+  // Initial scan with batched processing
+  const inputs = document.querySelectorAll(SELECTOR);
+  inputs.forEach(attachListener);
+  
+  // Use IntersectionObserver for better performance with dynamic content
   const observer = new MutationObserver((mutations) => {
+    const newInputs: Element[] = [];
+    
     for (const mutation of mutations) {
       if (mutation.type === 'childList') {
-        const inputs = document.querySelectorAll('textarea, input[type="text"], [contenteditable="true"]');
-        inputs.forEach((input) => {
-          if (!(input as any)._injectionDetectorAttached) {
-            (input as any)._injectionDetectorAttached = true;
-            input.addEventListener('input', (e) => {
-              const target = e.target as HTMLInputElement | HTMLTextAreaElement;
-              const text = target.value || (target as HTMLElement).textContent || '';
-              
-              const result = detectInjection(text);
-              if (result.detected) {
-                // Remove existing banners
-                document.querySelectorAll('.injection-detector-banner').forEach(b => b.remove());
-                // Show new banner
-                const banner = createWarningBanner(result.matches);
-                document.body.appendChild(banner);
-                
-                // Auto-remove after 10 seconds
-                setTimeout(() => banner.remove(), 10000);
-              }
-            });
+        mutation.addedNodes.forEach(node => {
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const element = node as Element;
+            if (element.matches(SELECTOR)) {
+              newInputs.push(element);
+            }
+            newInputs.push(...Array.from(element.querySelectorAll(SELECTOR)));
           }
         });
       }
     }
+    
+    // Batch attach listeners
+    newInputs.forEach(attachListener);
   });
   
   observer.observe(document.body, {
     childList: true,
     subtree: true
   });
-  
-  // Initial scan
-  const inputs = document.querySelectorAll('textarea, input[type="text"], [contenteditable="true"]');
-  inputs.forEach((input) => {
-    (input as any)._injectionDetectorAttached = true;
-    input.addEventListener('input', (e) => {
-      const target = e.target as HTMLInputElement | HTMLTextAreaElement;
-      const text = target.value || (target as HTMLElement).textContent || '';
-      
-      const result = detectInjection(text);
-      if (result.detected) {
-        document.querySelectorAll('.injection-detector-banner').forEach(b => b.remove());
-        const banner = createWarningBanner(result.matches);
-        document.body.appendChild(banner);
-        setTimeout(() => banner.remove(), 10000);
-      }
-    });
-  });
 }
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+  removeBanner();
+  if (debounceTimer !== null) {
+    clearTimeout(debounceTimer);
+  }
+});
 
 // Initialize
 loadPatterns().then(() => {
   console.log('Prompt Injection Detector initialized');
   monitorInputs();
+}).catch(err => {
+  console.error('Failed to initialize Prompt Injection Detector:', err);
 });
