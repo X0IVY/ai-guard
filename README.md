@@ -1,51 +1,55 @@
-# AI Guard - Brain Monitor Dashboard
+# ai-guard
 
-visualize what's happening inside your AI's "brain" in real-time.
+ever wonder what's going on inside ChatGPT's head when it gives you a weird answer?
 
-## what it does
+this extension basically lets you peek into the AI's "brain" while you're chatting. tracks things like memory, context drift, confidence levels, hallucinations - all in real time.
 
-see inside the AI's cognitive state with real-time tracking of:
+## why i built this
 
-### 🧠 memory state
+was debugging some AI responses and got frustrated not knowing if it:
+- forgot something from earlier
+- went completely off-topic
+- was just making shit up
+- lost confidence halfway through
 
-- **memory pressure**: how close AI is to forgetting things
-- **forgotten items**: track when AI loses track of previous info
-- **active memory**: see what's currently in short-term memory
+so i threw this together to actually see what's happening under the hood. turned out pretty useful for spotting when AI is about to give you garbage.
 
-### 🎯 context awareness
+## what it tracks
 
-- **context drift**: measures how far off-topic AI has gone
-- **active topics**: what AI thinks you're talking about
-- **lost references**: when AI forgets what "it" or "that" refers to
+### memory stuff
+- **memory pressure** - basically how close it is to forgetting things
+- **forgotten items** - catches when it loses track of what you said earlier
+- **active memory** - shows what's currently in working memory
 
-### 🤔 reasoning patterns
+### context & drift
+- **context drift** - how far off-topic the conversation has gone
+- **active topics** - what it thinks you're actually talking about
+- **lost references** - when it forgets what "it" or "that" means
 
-- **confidence level**: how certain AI is about its answers
-- **uncertainty markers**: counts "maybe", "I think", etc.
-- **hallucination detection**: flags suspicious claims and vague citations
-- **self-corrections**: tracks when AI corrects itself
+### reasoning quality  
+- **confidence** - how sure it is (counts all the "maybe" and "I think" hedging)
+- **hallucinations** - flags suspicious claims and vague citations
+- **self-corrections** - tracks when it backtracks or contradicts itself
 
-### 👁️ attention tracking
+### attention
+- **focus score** - how well it's paying attention vs going on tangents
+- **distractions** - catches when it derails
+- **focus areas** - keywords it's concentrating on
 
-- **focus score**: how well AI is paying attention to your question
-- **distractions**: when AI goes off on tangents
-- **focus areas**: keywords AI is concentrating on
-
-### 💭 emotional state
-
-- **tone**: current emotional tone (neutral/apologetic/defensive/uncertain)
-- **tone shifts**: when AI suddenly changes its emotional state
-- **stress indicators**: defensive language, excessive apologies
+### emotional state
+- **tone** - neutral, apologetic, defensive, uncertain
+- **tone shifts** - sudden changes (like when it gets defensive)
+- **stress** - excessive apologizing, hedging language
 
 ## features
 
-- 🎨 **beautiful dashboard** - clean, collapsible interface in corner of page
-- ⚡ **real-time updates** - metrics refresh every 500ms as you chat
-- 🚨 **smart alerts** - color-coded warnings (yellow=caution, red=critical)
-- 🌐 **works everywhere** - ChatGPT, Claude, and other AI chat platforms
-- 🎯 **simple layout** - expandable sections, no clutter
+- clean dashboard in the corner (collapsible)
+- updates every 500ms as you chat
+- color-coded alerts (green=good, yellow=watch out, red=wtf)
+- works on ChatGPT, Claude, etc
+- doesn't get in your way
 
-## installation
+## setup
 
 ```bash
 git clone https://github.com/X0IVY/ai-guard.git
@@ -54,78 +58,58 @@ npm install
 npm run build
 ```
 
-then load the `dist/` folder as an unpacked extension in Chrome.
+load the `dist/` folder as unpacked extension in chrome.
 
-see [IMPLEMENTATION.md](IMPLEMENTATION.md) for detailed setup instructions.
+for detailed setup/integration check [IMPLEMENTATION.md](IMPLEMENTATION.md)
 
 ## how it works
 
-the extension analyzes AI responses in real-time using natural language processing to:
+runs NLP analysis on responses in real-time:
 
-1. **track memory usage** - monitors conversation length vs context window
-2. **detect context drift** - compares current topic to conversation history  
-3. **measure confidence** - analyzes uncertainty markers and hedging language
-4. **spot hallucinations** - looks for vague claims without proper sources
-5. **gauge attention** - tracks topic consistency and focus
-6. **read emotional state** - detects tone shifts and stress patterns
+1. tracks conversation length vs context window
+2. compares current topic to history (context drift detection)
+3. analyzes hedging language and uncertainty markers
+4. looks for claims without sources (hallucination flags)
+5. tracks topic consistency and focus
+6. detects tone shifts and stress patterns
 
-## dashboard controls
+## using it
 
-- click the **brain icon** (🧠) in the top-right to expand/collapse
-- **green metrics** = normal operation
-- **yellow metrics** = worth watching
-- **red metrics** = critical state detected
+click the brain icon (🧠) in top-right to expand/collapse.
 
-## example use cases
+**debugging weird responses:**
+- check memory pressure (is it forgetting stuff?)
+- check context drift (did conversation derail?)
+- check confidence (lots of "maybe" and "I think"?)
 
-### debugging conversations
+**quality checking output:**
+- any hallucination flags?
+- high uncertainty markers?
+- did it contradict itself?
 
-when AI gives a weird response, check:
-- **memory pressure** - is it forgetting earlier context?
-- **context drift** - did the conversation go off track?
-- **confidence** - is AI uncertain about its answer?
+**research/analysis:**
+- when does memory pressure spike in long convos?
+- how well does it maintain topic focus?
+- does it get "defensive" under certain conditions?
 
-### quality checking
+## tech stack
 
-before trusting AI output, verify:
-- **hallucination detection** - any suspicious claims flagged?
-- **confidence level** - is AI hedging with "maybe" and "I think"?
-- **self-corrections** - did AI contradict itself?
+- preact (lighter than react)
+- typescript
+- custom css with animations
+- chrome extension manifest v3
 
-### research & analysis
+## main files
 
-track AI behavior over long conversations:
-- **memory patterns** - when does AI start forgetting?
-- **topic drift** - how well does AI stay on subject?
-- **emotional state** - does AI get "defensive" under pressure?
-
-## technical details
-
-- **frontend**: Preact for lightweight reactive UI
-- **styling**: custom CSS with smooth animations
-- **architecture**: modular TypeScript classes
-- **tracking**: `BrainTracker` class with 5 cognitive dimensions
-- **visualization**: `BrainDashboard` component with real-time updates
-
-## files
-
-- `src/brain-tracker.ts` - core tracking logic and state management
-- `src/brain-dashboard.tsx` - Preact UI component
-- `styles/brain-dashboard.css` - professional dark theme styling
-- `IMPLEMENTATION.md` - comprehensive developer guide
+- `src/brain-tracker.ts` - core tracking logic
+- `src/brain-dashboard.tsx` - UI component  
+- `styles/brain-dashboard.css` - styling
+- `IMPLEMENTATION.md` - dev guide if you want to modify/integrate
 
 ## contributing
 
-see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## security
-
-for security issues, see [SECURITY.md](SECURITY.md).
+see [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## license
 
-MIT - see [LICENSE](LICENSE) for details.
-
----
-
-*peek inside the AI's brain* 🧠
+MIT
