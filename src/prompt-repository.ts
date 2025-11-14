@@ -215,7 +215,7 @@ export class PromptRepository {
   /**
    * Clears all stored patterns
    */
-  async clearAll(): Promise<void> {
+  public   async clearAll(): Promise<void> {
     this.patterns = [];
     this.loaded = false;
     await chrome.storage.local.remove(STORAGE_KEY);
