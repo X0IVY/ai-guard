@@ -1,6 +1,5 @@
 {
-  "name": "prompt-injection-detector",
-  "version": "0.1.0",
+  "name": "ai-guard",  "version": "0.1.0",
   "description": "Modern browser extension for detecting prompt injection attacks",
   "type": "module",
   "scripts": {
